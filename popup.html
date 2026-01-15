@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,38 +8,160 @@
     <link rel="stylesheet" href="popup.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
-        <header>
-            <div class="logo">
-                <span class="icon">🚀</span>
-                <h1>Focus Flow</h1>
-            </div>
-            <p class="subtitle">Stay in the zone</p>
-        </header>
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="focus">Focus</button>
+            <button class="tab-btn" data-tab="sites">Sites</button>
+            <button class="tab-btn" data-tab="schedule">Schedule</button>
+            <button class="tab-btn" data-tab="stats">Stats</button>
+        </nav>
 
         <main>
-            <div class="input-group">
-                <input type="text" id="siteInput" placeholder="Add website (e.g. twitter.com)" spellcheck="false">
-                <button id="addButton">Add</button>
+            <!-- Focus Tab -->
+            <div id="focusTab" class="tab-content active">
+                <div class="timer-card">
+                    <div class="timer-display" id="timerDisplay">25:00</div>
+                    <div class="timer-controls">
+                        <select id="durationSelect">
+                            <option value="15">15 mins</option>
+                            <option value="25" selected>25 mins</option>
+                            <option value="45">45 mins</option>
+                            <option value="60">60 mins</option>
+                        </select>
+                        <button id="startSessionBtn" class="primary-btn">Start Session</button>
+                        <button id="stopSessionBtn" class="secondary-btn hidden">Stop</button>
+                    </div>
+                    <div class="hard-mode-toggle">
+                        <label class="switch">
+                            <input type="checkbox" id="hardModeToggle">
+                            <span class="slider round"></span>
+                        </label>
+                        <span>Hard Mode</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="list-container">
-                <ul id="blockList">
-                    <!-- Blocked sites will appear here -->
-                </ul>
+            <!-- Sites Tab -->
+            <div id="sitesTab" class="tab-content">
+                <div class="input-group">
+                    <input type="text" id="siteInput" placeholder="Add website..." spellcheck="false">
+                    <button id="addButton">Add</button>
+                </div>
+                <div class="suggestions-container">
+                    <p class="section-title">Common Distractions</p>
+                    <div class="suggestions-grid" id="suggestionsGrid"></div>
+                </div>
+                <div class="list-container">
+                    <p class="section-title">Blocked Websites</p>
+                    <ul id="blockList"></ul>
+                </div>
+            </div>
+
+            <!-- Schedule Tab -->
+            <div id="scheduleTab" class="tab-content">
+                <div class="schedule-card">
+                    <p class="section-title">Automatic Blocking Schedule</p>
+                    <p class="schedule-description">Block sites automatically during specific hours</p>
+
+                    <div class="schedule-toggle-section">
+                        <label class="schedule-toggle-label">
+                            <input type="checkbox" id="scheduleEnabled" class="schedule-checkbox">
+                            <span>Enable Schedule</span>
+                        </label>
+                    </div>
+
+                    <div id="scheduleSettings" class="schedule-settings">
+                        <div class="time-range">
+                            <div class="time-input-group">
+                                <label>Start Time</label>
+                                <input type="time" id="scheduleStart" value="09:00">
+                            </div>
+                            <div class="time-input-group">
+                                <label>End Time</label>
+                                <input type="time" id="scheduleEnd" value="17:00">
+                            </div>
+                        </div>
+
+                        <div class="days-selector">
+                            <p class="section-title">Active Days</p>
+                            <div class="days-grid">
+                                <label class="day-checkbox">
+                                    <input type="checkbox" value="1" checked>
+                                    <span>Mon</span>
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" value="2" checked>
+                                    <span>Tue</span>
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" value="3" checked>
+                                    <span>Wed</span>
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" value="4" checked>
+                                    <span>Thu</span>
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" value="5" checked>
+                                    <span>Fri</span>
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" value="6">
+                                    <span>Sat</span>
+                                </label>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" value="0">
+                                    <span>Sun</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="quick-presets">
+                            <p class="section-title">Quick Presets</p>
+                            <button class="preset-btn" data-preset="work">Work Hours (9-5)</button>
+                            <button class="preset-btn" data-preset="evening">Evenings (6-10 PM)</button>
+                            <button class="preset-btn" data-preset="allday">All Day</button>
+                        </div>
+
+                        <button id="saveSchedule" class="primary-btn">Save Schedule</button>
+                    </div>
+
+                    <div class="schedule-status" id="scheduleStatus"></div>
+                </div>
+            </div>
+
+            <!-- Stats Tab -->
+            <div id="statsTab" class="tab-content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-value" id="totalBlocks">0</span>
+                        <span class="stat-label">Blocks Today</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="topDistraction">-</span>
+                        <span class="stat-label">Top Distraction</span>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <p class="section-title">Block History</p>
+                    <div id="statsList" class="stats-list"></div>
+                </div>
             </div>
         </main>
 
         <footer>
             <div class="status-indicator">
-                <span id="statusText">Active</span>
+                <span id="statusText">Focus Flow is ready</span>
                 <span class="dot"></span>
             </div>
         </footer>
     </div>
     <script src="popup.js"></script>
 </body>
+
 </html>
