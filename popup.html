@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Flow</title>
+    <link rel="stylesheet" href="popup.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span class="icon">🚀</span>
+                <h1>Focus Flow</h1>
+            </div>
+            <p class="subtitle">Stay in the zone</p>
+        </header>
+
+        <main>
+            <div class="input-group">
+                <input type="text" id="siteInput" placeholder="Add website (e.g. twitter.com)" spellcheck="false">
+                <button id="addButton">Add</button>
+            </div>
+
+            <div class="list-container">
+                <ul id="blockList">
+                    <!-- Blocked sites will appear here -->
+                </ul>
+            </div>
+        </main>
+
+        <footer>
+            <div class="status-indicator">
+                <span id="statusText">Active</span>
+                <span class="dot"></span>
+            </div>
+        </footer>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
