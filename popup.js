@@ -1,4 +1,4 @@
-console.log('[Focus Flow Popup] Script loaded and initializing...');
+console.log('[Focus Flow Popup] Script loaded v1.0.1 initializing...');
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('[Focus Flow Popup] DOM Content Loaded');
@@ -19,11 +19,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusText = document.getElementById('statusText');
     const hardModeLockedMsg = document.getElementById('hardModeLockedMsg');
     const celebrationOverlay = document.getElementById('celebrationOverlay');
-    const completeTotalSessions = document.getElementById('completeTotalSessions');
-    const completeTotalMinutes = document.getElementById('completeTotalMinutes');
     const closeCelebration = document.getElementById('closeCelebration');
-    const dailySessionsEl = document.getElementById('dailySessions');
-    const dailyMinutesEl = document.getElementById('dailyMinutes');
+    const confirmationModal = document.getElementById('confirmationModal');
+    const cancelConfirm = document.getElementById('cancelConfirm');
+    const executeConfirm = document.getElementById('executeConfirm');
+    const modalGuidance = document.getElementById('modalGuidance');
+    const modalTitle = document.getElementById('modalTitle');
+    const confirmIcon = document.getElementById('confirmIcon');
+
+    let currentConfirmAction = null;
 
     let timerInterval;
 
@@ -63,7 +67,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Sites Management (kept from original with minor improvements)
+    // Limit duration input to 3 digits
+    if (durationInput) {
+        durationInput.addEventListener('input', () => {
+            if (durationInput.value.length > 3) {
+                durationInput.value = durationInput.value.slice(0, 3);
+            }
+        });
+    }
+
+    // Site Management (kept from original with minor improvements)
     const siteInput = document.getElementById('siteInput');
     const addButton = document.getElementById('addButton');
     const blockList = document.getElementById('blockList');
@@ -119,7 +132,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderList(sites, isHardMode);
         updateTimerUI(result.sessionState);
-        loadDailyStats(); // Initial load of daily stats
+        updateUnifiedStats(); // Initial load of all stats
+
+        // Auto-fill current site
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs && tabs[0] && tabs[0].url && tabs[0].url.startsWith('http')) {
+                try {
+                    const url = new URL(tabs[0].url);
+                    const hostname = url.hostname.replace(/^www\./, '');
+                    siteInput.value = hostname;
+                    siteInput.select(); // Highlight for easy overwriting
+                } catch (e) {
+                    console.error('Error parsing URL:', e);
+                }
+            }
+        });
     });
 
     addButton.addEventListener('click', () => addSiteFromInput());
@@ -133,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderList(sites, isHardMode) {
+    function renderList(sites, isHardMode, highlightSite = null) {
         blockList.innerHTML = '';
 
         // Get block timestamps
@@ -157,6 +184,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <button class="remove-btn" data-site="${site}" ${isHardMode ? 'disabled style="opacity:0.3;cursor:not-allowed"' : ''}>✕</button>
                 `;
+                if (highlightSite && site === highlightSite) {
+                    li.classList.add('just-added');
+                    setTimeout(() => li.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+                }
+
                 blockList.appendChild(li);
             });
 
@@ -241,7 +273,42 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
 
                             console.log('[Popup] Storage updated successfully');
-                            renderList(newSites, false);
+                            renderList(newSites, false, sanitizedSite);
+
+                            // Check if schedule is enabled
+                            chrome.storage.local.get(['schedule'], (schedRes) => {
+                                const schedule = schedRes.schedule;
+                                if (!schedule || !schedule.enabled) {
+                                    // Scenario 1: No Schedule -> Prompt to create one
+                                    showConfirmationModal({
+                                        title: 'Enable Focus Schedule?',
+                                        message: 'This site is now blocked 24/7. Would you like to set specific focus hours instead?',
+                                        icon: '⏰',
+                                        confirmText: 'Set Schedule',
+                                        cancelText: 'Keep 24/7 Block',
+                                        onConfirm: () => {
+                                            const scheduleTabBtn = document.querySelector('.tab-btn[data-tab="schedule"]');
+                                            if (scheduleTabBtn) scheduleTabBtn.click();
+                                        }
+                                    });
+                                } else {
+                                    // Scenario 2: Schedule Enabled -> Check if currently active
+                                    const status = checkScheduleStatus(schedule);
+                                    if (!status.isActive) {
+                                        showConfirmationModal({
+                                            title: 'Site Added (Not Currently Blocked)',
+                                            message: 'This site is in your blocklist, but your Focus Schedule is currently inactive. It will be blocked when your schedule starts.',
+                                            icon: '💤',
+                                            cancelText: 'Change Schedule', // Primary Button
+                                            confirmText: 'OK', // Secondary Link
+                                            onCancel: () => {
+                                                const scheduleTabBtn = document.querySelector('.tab-btn[data-tab="schedule"]');
+                                                if (scheduleTabBtn) scheduleTabBtn.click();
+                                            }
+                                        });
+                                    }
+                                }
+                            });
 
                             // Send message with the newly added site for cache clearing
                             chrome.runtime.sendMessage({
@@ -266,7 +333,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function showConfirmationModal(config) {
+        modalTitle.textContent = config.title || 'Wait, Stay Focused!';
+        modalGuidance.textContent = config.message;
+        confirmIcon.textContent = config.icon || '🛡️';
+        cancelConfirm.textContent = config.cancelText || 'Keep it Active';
+        executeConfirm.textContent = config.confirmText || 'Yes, remove it';
+
+        currentConfirmAction = config.onConfirm;
+        currentCancelAction = config.onCancel;
+        confirmationModal.classList.remove('hidden');
+    }
+
+    let currentCancelAction = null;
+
+    if (cancelConfirm) {
+        cancelConfirm.addEventListener('click', () => {
+            if (currentCancelAction) currentCancelAction();
+            confirmationModal.classList.add('hidden');
+            currentConfirmAction = null;
+            currentCancelAction = null;
+        });
+    }
+
+    if (executeConfirm) {
+        executeConfirm.addEventListener('click', () => {
+            if (currentConfirmAction) currentConfirmAction();
+            confirmationModal.classList.add('hidden');
+            currentConfirmAction = null;
+            currentCancelAction = null;
+        });
+    }
+
     function removeSite(site) {
+        const guidanceMessages = [
+            "Is this website really more important than the goals you're working toward right now?",
+            "Remember why you blocked this in the first place. Stay strong!",
+            "Temptation is temporary, but the regret of lost time lasts longer.",
+            "You were doing so well! Are you sure you want to let this distraction back in?",
+            "Success is built on what you don't do. Keep your focus on what matters.",
+            "Is 5 minutes of scrolling worth losing your momentum?"
+        ];
+
+        const randomGuidance = guidanceMessages[Math.floor(Math.random() * guidanceMessages.length)];
+
+        showConfirmationModal({
+            title: 'Unblock Website?',
+            message: randomGuidance,
+            icon: '🛡️',
+            cancelText: 'Keep it Blocked',
+            confirmText: 'Yes, unblock it',
+            onConfirm: () => actuallyRemoveSite(site)
+        });
+    }
+
+    function actuallyRemoveSite(site) {
         chrome.storage.local.get(['blockedSites', 'blockTimestamps'], (result) => {
             const sites = result.blockedSites || [];
             const timestamps = result.blockTimestamps || {};
@@ -502,48 +623,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateTimerUI(changes.sessionState.newValue);
             }
             if (changes.stats) {
-                loadStats();
-                loadDailyStats(); // Update daily stats live
+                updateUnifiedStats(); // Update everything live
             }
         }
     });
 
-    function loadDailyStats() {
+    function updateUnifiedStats() {
         chrome.storage.local.get(['stats'], (result) => {
-            const stats = result.stats || {};
-            const daily = stats.daily || {};
+            const stats = result.stats || { totalBlocks: 0, siteStats: {}, totalSessions: 0, totalFocusMinutes: 0, daily: {} };
+
+            // Get today's data
             const today = new Date().toLocaleDateString('en-CA');
-            const todaysData = daily[today] || { sessions: 0, minutes: 0 };
+            const todaysData = (stats.daily && stats.daily[today]) || { sessions: 0, minutes: 0 };
 
-            if (dailySessionsEl) dailySessionsEl.textContent = todaysData.sessions;
-            if (dailyMinutesEl) dailyMinutesEl.textContent = todaysData.minutes;
-        });
-    }
+            // Update all elements by class
+            const updateList = [
+                { class: '.val-today-sessions', val: todaysData.sessions },
+                { class: '.val-today-mins', val: todaysData.minutes },
+                { class: '.val-total-sessions', val: stats.totalSessions || 0 },
+                { class: '.val-total-mins', val: stats.totalFocusMinutes || 0 }
+            ];
 
-    // Stats Logic
-    function loadStats() {
-        chrome.storage.local.get(['stats'], (result) => {
-            const stats = result.stats || { totalBlocks: 0, siteStats: {}, totalSessions: 0, totalFocusMinutes: 0 };
-            document.getElementById('totalBlocks').innerText = stats.totalBlocks || 0;
-            document.getElementById('totalFocusSessions').innerText = stats.totalSessions || 0;
-            document.getElementById('totalFocusMinutes').innerText = stats.totalFocusMinutes || 0;
+            updateList.forEach(item => {
+                document.querySelectorAll(item.class).forEach(el => {
+                    el.textContent = item.val;
+                });
+            });
+
+            // Handle non-focus stats (Stats Tab only)
+            const totalBlocksEl = document.getElementById('totalBlocks');
+            if (totalBlocksEl) totalBlocksEl.innerText = stats.totalBlocks || 0;
 
             const sites = Object.entries(stats.siteStats || {}).sort((a, b) => b[1] - a[1]);
             const topDistraction = sites.length > 0 ? sites[0][0] : '-';
-            document.getElementById('topDistraction').innerText = topDistraction;
-
-            const statsList = document.getElementById('statsList');
-            statsList.innerHTML = '';
-            sites.forEach(([site, count]) => {
-                const div = document.createElement('div');
-                div.className = 'stats-item';
-                div.innerHTML = `
-                    <span>${site}</span>
-                    <span class="stats-count">${count} blocks</span>
-                `;
-                statsList.appendChild(div);
-            });
+            const topDistractionEl = document.getElementById('topDistraction');
+            if (topDistractionEl) topDistractionEl.innerText = topDistraction;
         });
+    }
+
+    // Heritage wrapper for any old calls
+    function loadStats() {
+        updateUnifiedStats();
     }
 
     // Schedule Tab Logic
@@ -560,11 +680,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const scheduleStatus = document.getElementById('scheduleStatus');
         const dayCheckboxes = document.querySelectorAll('.day-checkbox input[type="checkbox"]');
         const presetBtns = document.querySelectorAll('.preset-btn');
-        const scheduleToggleSection = document.getElementById('scheduleToggleSection');
+        const scheduleToggleSection = document.querySelector('.schedule-toggle-section');
         const disableScheduleBtn = document.getElementById('disableSchedule');
+        const scheduleContent = document.getElementById('scheduleContent');
 
         // Check if elements exist to prevent errors
-        if (!scheduleEnabled || !scheduleSettings || !scheduleSummary) {
+        if (!scheduleEnabled || !scheduleSettings || !scheduleSummary || !scheduleContent) {
             console.error('[Focus Flow Popup] Schedule elements not found');
             return;
         }
@@ -582,16 +703,19 @@ document.addEventListener('DOMContentLoaded', () => {
             scheduleStart.value = schedule.startTime;
             scheduleEnd.value = schedule.endTime;
 
-            // Show summary or settings based on whether schedule is enabled
+            // Handle main content visibility based on master toggle
             if (schedule.enabled) {
+                scheduleContent.style.display = 'block';
+                scheduleToggleSection.classList.add('hidden'); // Hide toggle when enabled
+                // Show summary or settings based on whether it's established
                 scheduleSummary.style.display = 'block';
                 scheduleSettings.classList.remove('active');
-                if (scheduleToggleSection) scheduleToggleSection.style.display = 'none';
                 updateSummaryView(schedule);
             } else {
+                scheduleContent.style.display = 'none';
                 scheduleSummary.style.display = 'none';
                 scheduleSettings.classList.add('active');
-                if (scheduleToggleSection) scheduleToggleSection.style.display = 'block';
+                scheduleToggleSection.classList.remove('hidden'); // Show toggle when disabled
             }
 
             // Set day checkboxes and check for preset match
@@ -623,40 +747,92 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Modify button - show settings
             modifyScheduleBtn.addEventListener('click', () => {
-                scheduleSummary.style.display = 'none';
-                scheduleSettings.classList.add('active');
-                if (scheduleToggleSection) scheduleToggleSection.style.display = 'block';
+                const modifyScheduleMessages = [
+                    "Consistency is the foundation of success. Are you sure you need to change this?",
+                    "Stick to the plan if you can. Modifying often leads to relaxing boundaries.",
+                    "Great schedules are built on routine. Try to keep this one if possible!",
+                    "Changing your schedule is okay, but are you doing it to improve focus or avoid it?",
+                    "Optimizing is good, but make sure you aren't just making it easier to be distracted."
+                ];
+
+                const randomMessage = modifyScheduleMessages[Math.floor(Math.random() * modifyScheduleMessages.length)];
+
+                showConfirmationModal({
+                    title: 'Modify Focus Plan?',
+                    message: randomMessage,
+                    icon: '📝',
+                    cancelText: 'Keep current schedule',
+                    confirmText: 'Yes, modify it',
+                    onConfirm: () => {
+                        scheduleSummary.style.display = 'none';
+                        scheduleSettings.classList.add('active');
+                        if (scheduleToggleSection) scheduleToggleSection.style.display = 'block';
+                    }
+                });
             });
 
             // Disable button
             if (disableScheduleBtn) {
                 disableScheduleBtn.addEventListener('click', () => {
-                    chrome.storage.local.get(['schedule'], (result) => {
-                        const schedule = result.schedule || {};
-                        schedule.enabled = false;
-                        chrome.storage.local.set({ schedule }, () => {
-                            scheduleEnabled.checked = false;
-                            scheduleSummary.style.display = 'none';
-                            scheduleSettings.classList.add('active');
-                            if (scheduleToggleSection) scheduleToggleSection.style.display = 'block';
-                            updateSummaryView(schedule);
-                        });
+                    const scheduleDisableMessages = [
+                        "Your future self will thank you for keeping this schedule active. Are you sure?",
+                        "Maintaining a schedule is the key to long-term success. Don't let it slip now.",
+                        "Are you sure you want to relax your focus boundaries?",
+                        "The best way to reach your goals is to stick to your plan. Stay committed!",
+                        "Consistency is what transforms average into excellence. Keep going!"
+                    ];
+
+                    const randomMessage = scheduleDisableMessages[Math.floor(Math.random() * scheduleDisableMessages.length)];
+
+                    showConfirmationModal({
+                        title: 'Disable Schedule?',
+                        message: randomMessage,
+                        icon: '🎯',
+                        cancelText: 'Keep it Active',
+                        confirmText: 'Yes, disable it',
+                        onConfirm: () => {
+                            chrome.storage.local.get(['schedule'], (result) => {
+                                const schedule = result.schedule || {
+                                    startTime: '09:00',
+                                    endTime: '17:00',
+                                    days: [1, 2, 3, 4, 5]
+                                };
+                                schedule.enabled = false;
+                                chrome.storage.local.set({ schedule }, () => {
+                                    if (scheduleEnabled) scheduleEnabled.checked = false;
+                                    if (scheduleContent) scheduleContent.style.display = 'none';
+                                    if (scheduleSummary) scheduleSummary.style.display = 'none';
+                                    if (scheduleSettings) scheduleSettings.classList.add('active');
+                                    if (scheduleToggleSection) scheduleToggleSection.classList.remove('hidden');
+                                    updateSummaryView(schedule);
+                                });
+                            });
+                        }
                     });
                 });
             }
 
-            // Toggle schedule settings
+            // Master schedule toggle
             scheduleEnabled.addEventListener('change', () => {
                 if (scheduleEnabled.checked) {
+                    scheduleContent.style.display = 'block';
                     scheduleSettings.classList.add('active');
+                    scheduleSummary.style.display = 'none';
+                    // We don't save yet, wait for 'Save Schedule'
                 } else {
-                    scheduleSettings.classList.remove('active');
+                    scheduleContent.style.display = 'none';
                     if (scheduleStatus) scheduleStatus.classList.remove('active');
-                    // Disable schedule
+                    // Disable schedule and save immediately
                     chrome.storage.local.get(['schedule'], (result) => {
-                        const schedule = result.schedule || {};
+                        const schedule = result.schedule || {
+                            startTime: '09:00',
+                            endTime: '17:00',
+                            days: [1, 2, 3, 4, 5]
+                        };
                         schedule.enabled = false;
-                        chrome.storage.local.set({ schedule });
+                        chrome.storage.local.set({ schedule }, () => {
+                            updateSummaryView(schedule);
+                        });
                     });
                 }
             });
@@ -714,7 +890,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateSummaryView(schedule);
                     scheduleSummary.style.display = 'block';
                     scheduleSettings.classList.remove('active');
-                    if (scheduleToggleSection) scheduleToggleSection.style.display = 'none';
 
                     setTimeout(() => {
                         if (scheduleStatus) scheduleStatus.classList.remove('active');
@@ -732,24 +907,84 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!summaryTime || !summaryDays || !statusIndicator) return;
 
         const statusText = statusIndicator.querySelector('.status-text');
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-        // Format time
+        // Robust Format time
         const formatTime = (time) => {
-            const [hours, minutes] = time.split(':');
-            const hour = parseInt(hours);
-            const ampm = hour >= 12 ? 'PM' : 'AM';
-            const displayHour = hour % 12 || 12;
-            return `${displayHour}:${minutes} ${ampm}`;
+            if (!time || typeof time !== 'string' || !time.includes(':')) return '--:--';
+            try {
+                const [hours, minutes] = time.split(':');
+                const hour = parseInt(hours);
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const displayHour = hour % 12 || 12;
+                return `${displayHour}:${minutes} ${ampm}`;
+            } catch (e) {
+                return '--:--';
+            }
         };
 
-        summaryTime.textContent = `${formatTime(schedule.startTime)} - ${formatTime(schedule.endTime)}`;
+        if (schedule && schedule.startTime && schedule.endTime) {
+            let timeText = `${formatTime(schedule.startTime)} - ${formatTime(schedule.endTime)}`;
+            // Check for overnight schedule
+            if (schedule.startTime > schedule.endTime) {
+                timeText += ' (Overnight 🌙)';
+            }
+            summaryTime.textContent = timeText;
+        } else {
+            summaryTime.textContent = 'Not configured';
+        }
 
         // Format days
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const activeDays = schedule.days.map(d => dayNames[d]).join(', ');
-        summaryDays.textContent = activeDays;
+        if (schedule && Array.isArray(schedule.days)) {
+            const activeDays = schedule.days.map(d => dayNames[d]).join(', ');
+            summaryDays.textContent = activeDays || 'None selected';
+        } else {
+            summaryDays.textContent = 'None selected';
+        }
 
-        // Check if schedule is currently active
+        if (schedule && schedule.enabled) {
+            const { isActive, isActiveDay, isActiveTime } = checkScheduleStatus(schedule);
+
+            const headerStatus = document.getElementById('scheduleHeaderStatus');
+            const headerText = headerStatus ? headerStatus.querySelector('.status-text') : null;
+
+            if (isActive) {
+                statusIndicator.classList.remove('inactive');
+                const activeText = '🔒 Focus Schedule Active';
+                statusText.textContent = activeText;
+
+                if (headerStatus) {
+                    headerStatus.classList.remove('inactive');
+                    if (headerText) headerText.textContent = activeText;
+                    headerStatus.style.display = 'flex';
+                }
+
+                const globalStatusText = document.getElementById('statusText');
+                if (globalStatusText) globalStatusText.innerText = '🔒 Focus Schedule Active';
+            } else {
+                statusIndicator.classList.add('inactive');
+                let inactiveText = '';
+                if (!isActiveDay) {
+                    inactiveText = `⏸️ Focus window closed - Not active on ${dayNames[new Date().getDay()]}`;
+                } else {
+                    inactiveText = `⏸️ Focus window closed - Outside scheduled hours`;
+                }
+                statusText.textContent = inactiveText;
+
+                if (headerStatus) {
+                    headerStatus.classList.add('inactive');
+                    if (headerText) headerText.textContent = inactiveText;
+                    headerStatus.style.display = 'flex';
+                }
+            }
+        }
+    }
+
+    function checkScheduleStatus(schedule) {
+        if (!schedule || !schedule.enabled || !schedule.startTime || !schedule.endTime || !Array.isArray(schedule.days)) {
+            return { isActive: false, isActiveDay: false, isActiveTime: false };
+        }
+
         const now = new Date();
         const currentDay = now.getDay();
         const currentTime = now.getHours() * 60 + now.getMinutes();
@@ -760,26 +995,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const endMinutes = endHour * 60 + endMin;
 
         const isActiveDay = schedule.days.includes(currentDay);
-        const isActiveTime = currentTime >= startMinutes && currentTime <= endMinutes;
 
-        if (schedule.enabled && isActiveDay && isActiveTime) {
-            statusIndicator.classList.remove('inactive');
-            statusText.textContent = '🔒 Schedule is ACTIVE - Sites are blocked now';
-            // Update the global footer status too
-            const globalStatusText = document.getElementById('statusText');
-            if (globalStatusText) globalStatusText.innerText = '🔒 Schedule Active';
-        } else {
-            statusIndicator.classList.add('inactive');
-            if (!schedule.enabled) {
-                statusText.textContent = '⏸️ Schedule is DISABLED';
-            } else if (!isActiveDay) {
-                statusText.textContent = `⏸️ Schedule is INACTIVE - Not active on ${dayNames[currentDay]}`;
-            } else {
-                statusText.textContent = `⏸️ Schedule is INACTIVE - Outside scheduled hours`;
-            }
-            // Update the global footer status too
-            const globalStatusText = document.getElementById('statusText');
-            if (globalStatusText) globalStatusText.innerHTML = 'Made by <a href="https://www.hashmatic.in" target="_blank">www.hashmatic.in</a>';
-        }
+        // Handle overnight schedules
+        const isActiveTime = startMinutes <= endMinutes
+            ? (currentTime >= startMinutes && currentTime <= endMinutes)
+            : (currentTime >= startMinutes || currentTime <= endMinutes);
+
+        return { isActive: isActiveDay && isActiveTime, isActiveDay, isActiveTime };
     }
+
+    const globalStatusText = document.getElementById('statusText');
+    if (globalStatusText) globalStatusText.innerHTML = 'Made by <a href="https://www.hashmatic.in" target="_blank">www.hashmatic.in</a>';
 });

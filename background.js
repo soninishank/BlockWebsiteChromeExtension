@@ -26,11 +26,8 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'updateRules') {
-        updateRules(request.sites);
-        // Clear cache for newly added sites
-        if (request.newSites && request.newSites.length > 0) {
-            request.newSites.forEach(site => clearSiteData(site));
-        }
+        // Use the centralized check to respect schedule
+        checkAndApplySchedule(request.newSites);
         sendResponse({ success: true });
     } else if (request.action === 'startSession') {
         startSession(request.duration, request.hardMode);
@@ -226,59 +223,71 @@ function incrementBlockCount(site) {
     });
 }
 
+let isUpdatingRules = false;
+let pendingUpdate = null;
+
 async function updateRules(sites) {
-    console.log('[Focus Flow] updateRules called with sites:', sites);
-
-    // Get all current dynamic rules
-    const currentRules = await chrome.declarativeNetRequest.getDynamicRules();
-    const currentRuleIds = currentRules.map(rule => rule.id);
-    console.log('[Focus Flow] Current rule IDs to remove:', currentRuleIds);
-
-    // Expand sites list - if x.com is added, also add twitter.com and vice versa
-    const expandedSites = [...sites];
-    if (sites.includes('x.com') && !sites.includes('twitter.com')) {
-        expandedSites.push('twitter.com');
-    }
-    if (sites.includes('twitter.com') && !sites.includes('x.com')) {
-        expandedSites.push('x.com');
+    // If already updating, just save the latest sites and return
+    if (isUpdatingRules) {
+        console.log('[Focus Flow] Update already in progress, queuing latest site list');
+        pendingUpdate = sites;
+        return;
     }
 
-    // Create new rules using requestDomains (more reliable than urlFilter)
-    const newRules = [];
-    expandedSites.forEach((site, index) => {
-        // Single rule per domain using requestDomains
-        // This automatically matches the domain and ALL its subdomains
-        newRules.push({
+    isUpdatingRules = true;
+    console.log('[Focus Flow] Starting updateRules with sites:', sites);
+
+    try {
+        // Get all current dynamic rules
+        const currentRules = await chrome.declarativeNetRequest.getDynamicRules();
+        const currentRuleIds = currentRules.map(rule => rule.id);
+        console.log('[Focus Flow] Removing existing rules:', currentRuleIds.length);
+
+        // Expand sites list - handle edge cases
+        let expandedSites = Array.isArray(sites) ? [...sites] : [];
+        if (expandedSites.includes('x.com') && !expandedSites.includes('twitter.com')) {
+            expandedSites.push('twitter.com');
+        }
+        if (expandedSites.includes('twitter.com') && !expandedSites.includes('x.com')) {
+            expandedSites.push('x.com');
+        }
+
+        // DEDUPLICATE and sanitize
+        const uniqueSites = [...new Set(expandedSites.filter(s => s && typeof s === 'string' && s.trim()))];
+        console.log('[Focus Flow] Final unique sites to block:', uniqueSites);
+
+        // Create new rules using requestDomains
+        const newRules = uniqueSites.map((site, index) => ({
             id: index + 1,
             priority: 1,
             action: {
                 type: 'redirect',
-                redirect: {
-                    extensionPath: '/blocked.html'
-                }
+                redirect: { extensionPath: '/blocked.html' }
             },
             condition: {
                 requestDomains: [site],
                 resourceTypes: ['main_frame']
             }
-        });
-    });
+        }));
 
-    console.log('[Focus Flow] New rules to add:', JSON.stringify(newRules, null, 2));
-
-    // Update rules: remove all old ones and add new ones
-    try {
+        // Update rules: remove all old ones and add new ones
         await chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: currentRuleIds,
             addRules: newRules
         });
-        console.log('[Focus Flow] ✅ Rules updated successfully!');
+        console.log(`[Focus Flow] ✅ Successfully applied ${newRules.length} rules`);
 
-        // Verify the rules were added
-        const verifyRules = await chrome.declarativeNetRequest.getDynamicRules();
-        console.log('[Focus Flow] Active dynamic rules:', verifyRules);
     } catch (error) {
         console.error('[Focus Flow] ❌ Error updating rules:', error);
+    } finally {
+        isUpdatingRules = false;
+        // If a new update request came in while we were working, process it now
+        if (pendingUpdate !== null) {
+            const nextUpdate = pendingUpdate;
+            pendingUpdate = null;
+            console.log('[Focus Flow] Processing queued update...');
+            updateRules(nextUpdate);
+        }
     }
 }
 
@@ -291,35 +300,48 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
 });
 
-async function checkAndApplySchedule() {
+async function checkAndApplySchedule(newSitesToClear = []) {
     const result = await chrome.storage.local.get(['schedule', 'blockedSites']);
     const schedule = result.schedule;
     const allSites = result.blockedSites || [];
 
+    let shouldBlock = false;
+
     if (!schedule || !schedule.enabled) {
-        // Schedule disabled, use all blocked sites
-        return;
+        // Schedule disabled (or not set) -> Default behavior is ALWAYS BLOCK
+        shouldBlock = true;
+    } else {
+        // Schedule is enabled -> Check if we are in the focus window
+        const now = new Date();
+        const currentDay = now.getDay();
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+
+        const [startHour, startMin] = schedule.startTime.split(':').map(Number);
+        const [endHour, endMin] = schedule.endTime.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+
+        const isActiveDay = schedule.days.includes(currentDay);
+        // Handle overnight schedules (e.g. 10PM to 2AM)
+        const isActiveTime = startMinutes <= endMinutes
+            ? (currentTime >= startMinutes && currentTime <= endMinutes)
+            : (currentTime >= startMinutes || currentTime <= endMinutes);
+
+        shouldBlock = isActiveDay && isActiveTime;
     }
 
-    const now = new Date();
-    const currentDay = now.getDay();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-    const [startHour, startMin] = schedule.startTime.split(':').map(Number);
-    const [endHour, endMin] = schedule.endTime.split(':').map(Number);
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-
-    const isActiveDay = schedule.days.includes(currentDay);
-    const isActiveTime = currentTime >= startMinutes && currentTime <= endMinutes;
-
-    if (isActiveDay && isActiveTime) {
-        // Schedule is active - block all sites
-        console.log('[Focus Flow] Schedule active - enforcing blocks');
+    if (shouldBlock) {
+        // Schedule is active (or default) - block all sites
+        console.log('[Focus Flow] Enforcing blocks (Schedule ' + (schedule?.enabled ? 'Active Window' : 'Default/Disabled') + ')');
         await updateRules(allSites);
+
+        // Clear cache for newly added sites ONLY if we are actually blocking them
+        if (newSitesToClear && newSitesToClear.length > 0) {
+            newSitesToClear.forEach(site => clearSiteData(site));
+        }
     } else {
-        // Schedule is not active - remove all blocking rules
-        console.log('[Focus Flow] Schedule inactive - removing blocks');
+        // Schedule is enabled but we are outside the window - remove all blocks
+        console.log('[Focus Flow] Schedule enabled but outside focus window - removing blocks');
         await updateRules([]);
     }
 }

@@ -22,15 +22,15 @@
         </header>
 
         <nav class="tabs">
-            <button class="tab-btn active" data-tab="focus">Focus</button>
-            <button class="tab-btn" data-tab="sites">Sites</button>
+            <button class="tab-btn active" data-tab="sites">Sites</button>
             <button class="tab-btn" data-tab="schedule">Schedule</button>
+            <button class="tab-btn" data-tab="focus">Focus</button>
             <button class="tab-btn" data-tab="stats">Stats</button>
         </nav>
 
         <main>
             <!-- Focus Tab -->
-            <div id="focusTab" class="tab-content active">
+            <div id="focusTab" class="tab-content">
                 <div class="timer-card">
                     <div class="timer-display" id="timerDisplay">25:00</div>
                     <div class="timer-controls">
@@ -69,16 +69,26 @@
                         <p class="hard-mode-hint">Session cannot be paused or stopped once started.</p>
                     </div>
 
-                    <!-- Daily Stats Display -->
-                    <div class="daily-stats-row">
-                        <div class="daily-stat-item">
-                            <span class="daily-stat-val" id="dailySessions">0</span>
-                            <span class="daily-stat-lbl">Today's Sessions</span>
+                    <!-- Unified Stats Display -->
+                    <div class="stats-summary-row">
+                        <div class="stat-summary-item">
+                            <span class="stat-summary-val val-today-sessions">0</span>
+                            <span class="stat-summary-lbl">Today's Sessions</span>
                         </div>
-                        <div class="daily-stat-divider"></div>
-                        <div class="daily-stat-item">
-                            <span class="daily-stat-val" id="dailyMinutes">0</span>
-                            <span class="daily-stat-lbl">Focus Minutes</span>
+                        <div class="stat-summary-divider"></div>
+                        <div class="stat-summary-item">
+                            <span class="stat-summary-val val-today-mins">0</span>
+                            <span class="stat-summary-lbl">Today's Mins</span>
+                        </div>
+                        <div class="stat-summary-divider"></div>
+                        <div class="stat-summary-item">
+                            <span class="stat-summary-val val-total-sessions">0</span>
+                            <span class="stat-summary-lbl">Total Sessions</span>
+                        </div>
+                        <div class="stat-summary-divider"></div>
+                        <div class="stat-summary-item">
+                            <span class="stat-summary-val val-total-mins">0</span>
+                            <span class="stat-summary-lbl">Total Mins</span>
                         </div>
                     </div>
 
@@ -88,14 +98,25 @@
                             <div class="celebration-emoji">🎊</div>
                             <h2>Amazing Work!</h2>
                             <p>You stayed focused and completed your session.</p>
-                            <div class="completion-stats">
-                                <div class="stat-box">
-                                    <span id="completeTotalSessions" class="stat-value">0</span>
-                                    <span class="stat-label">Total Sessions</span>
+                            <div class="stats-summary-row in-celebration">
+                                <div class="stat-summary-item">
+                                    <span class="stat-summary-val val-today-sessions">0</span>
+                                    <span class="stat-summary-lbl">Today's Sessions</span>
                                 </div>
-                                <div class="stat-box">
-                                    <span id="completeTotalMinutes" class="stat-value">0</span>
-                                    <span class="stat-label">Focus Mins</span>
+                                <div class="stat-summary-divider"></div>
+                                <div class="stat-summary-item">
+                                    <span class="stat-summary-val val-today-mins">0</span>
+                                    <span class="stat-summary-lbl">Today's Mins</span>
+                                </div>
+                                <div class="stat-summary-divider"></div>
+                                <div class="stat-summary-item">
+                                    <span class="stat-summary-val val-total-sessions">0</span>
+                                    <span class="stat-summary-lbl">Total Sessions</span>
+                                </div>
+                                <div class="stat-summary-divider"></div>
+                                <div class="stat-summary-item">
+                                    <span class="stat-summary-val val-total-mins">0</span>
+                                    <span class="stat-summary-lbl">Total Mins</span>
                                 </div>
                             </div>
                             <button id="closeCelebration" class="primary-btn">Awesome!</button>
@@ -105,9 +126,9 @@
             </div>
 
             <!-- Sites Tab -->
-            <div id="sitesTab" class="tab-content">
+            <div id="sitesTab" class="tab-content active">
                 <div class="input-group">
-                    <input type="text" id="siteInput" placeholder="Add website..." spellcheck="false">
+                    <input type="text" id="siteInput" placeholder="Add website to block..." spellcheck="false">
                     <button id="addButton">Add</button>
                 </div>
                 <div class="suggestions-container">
@@ -123,98 +144,110 @@
             <!-- Schedule Tab -->
             <div id="scheduleTab" class="tab-content">
                 <div class="schedule-card">
-                    <p class="section-title">Automatic Blocking Schedule</p>
-                    <p class="schedule-description">Sites are blocked only during your scheduled hours. Outside these
-                        times, they are accessible.</p>
-
-
-                    <div class="schedule-toggle-section" id="scheduleToggleSection">
-                        <label class="schedule-toggle-label">
-                            <input type="checkbox" id="scheduleEnabled" class="schedule-checkbox">
+                    <div class="schedule-toggle-section">
+                        <div class="toggle-row">
+                            <label class="switch">
+                                <input type="checkbox" id="scheduleEnabled">
+                                <span class="slider round"></span>
+                            </label>
                             <span>Enable Schedule</span>
-                        </label>
+                        </div>
+                        <p class="default-block-hint">
+                            ℹ️ Sites are blocked 24/7 by default. Enable schedule to block them only during specific
+                            hours.
+                        </p>
                     </div>
 
-                    <!-- Schedule Summary (shown when schedule exists) -->
-                    <div id="scheduleSummary" class="schedule-summary" style="display: none;">
-                        <div class="schedule-status-indicator" id="scheduleActiveStatus">
+                    <div id="scheduleContent" style="display: none;">
+                        <div class="schedule-status-indicator header-status" id="scheduleHeaderStatus">
                             <span class="status-dot"></span>
-                            <span class="status-text">Schedule is currently ACTIVE - Sites are blocked</span>
+                            <span class="status-text">Focus Schedule Active</span>
                         </div>
 
-                        <div class="summary-content">
-                            <div class="summary-item">
-                                <span class="summary-label">⏰ Active Hours:</span>
-                                <span class="summary-value" id="summaryTime">9:00 AM - 5:00 PM</span>
+                        <p class="schedule-description">Your focus is protected during these hours. Outside
+                            this window, sites are accessible.</p>
+
+                        <!-- Schedule Summary (shown when schedule exists) -->
+                        <div id="scheduleSummary" class="schedule-summary" style="display: none;">
+                            <div class="schedule-status-indicator" id="scheduleActiveStatus" style="display: none;">
+                                <span class="status-dot"></span>
+                                <span class="status-text">Focus Schedule Active</span>
                             </div>
-                            <div class="summary-item">
-                                <span class="summary-label">📅 Active Days:</span>
-                                <span class="summary-value" id="summaryDays">Mon, Tue, Wed, Thu, Fri</span>
+
+                            <div class="summary-content">
+                                <div class="summary-item">
+                                    <span class="summary-label">⏰ Focus Window:</span>
+                                    <span class="summary-value" id="summaryTime">9:00 AM - 5:00 PM</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="summary-label">🗓️ Scheduled Days:</span>
+                                    <span class="summary-value" id="summaryDays">Mon, Tue, Wed, Thu, Fri</span>
+                                </div>
+                            </div>
+                            <div class="summary-actions">
+                                <button id="modifySchedule" class="secondary-btn">Modify Schedule</button>
+                                <button id="disableSchedule" class="danger-btn">Disable Schedule</button>
                             </div>
                         </div>
-                        <div class="summary-actions">
-                            <button id="modifySchedule" class="secondary-btn">Modify Schedule</button>
-                            <button id="disableSchedule" class="danger-btn">Disable Schedule</button>
+
+                        <div id="scheduleSettings" class="schedule-settings">
+                            <div class="time-range">
+                                <div class="time-input-group">
+                                    <label>Start Time</label>
+                                    <input type="time" id="scheduleStart" value="09:00">
+                                </div>
+                                <div class="time-input-group">
+                                    <label>End Time</label>
+                                    <input type="time" id="scheduleEnd" value="17:00">
+                                </div>
+                            </div>
+
+                            <div class="days-selector">
+                                <p class="section-title">Active Days</p>
+                                <div class="days-grid">
+                                    <label class="day-checkbox">
+                                        <input type="checkbox" value="1" checked>
+                                        <span>Mon</span>
+                                    </label>
+                                    <label class="day-checkbox">
+                                        <input type="checkbox" value="2" checked>
+                                        <span>Tue</span>
+                                    </label>
+                                    <label class="day-checkbox">
+                                        <input type="checkbox" value="3" checked>
+                                        <span>Wed</span>
+                                    </label>
+                                    <label class="day-checkbox">
+                                        <input type="checkbox" value="4" checked>
+                                        <span>Thu</span>
+                                    </label>
+                                    <label class="day-checkbox">
+                                        <input type="checkbox" value="5" checked>
+                                        <span>Fri</span>
+                                    </label>
+                                    <label class="day-checkbox">
+                                        <input type="checkbox" value="6">
+                                        <span>Sat</span>
+                                    </label>
+                                    <label class="day-checkbox">
+                                        <input type="checkbox" value="0">
+                                        <span>Sun</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="quick-presets">
+                                <p class="section-title">Quick Presets</p>
+                                <button class="preset-btn" data-preset="work">Work Hours (9-5)</button>
+                                <button class="preset-btn" data-preset="evening">Evenings (6-10 PM)</button>
+                                <button class="preset-btn" data-preset="allday">All Day</button>
+                            </div>
+
+                            <button id="saveSchedule" class="primary-btn">Save Schedule</button>
                         </div>
+
+                        <div class="schedule-status" id="scheduleStatus"></div>
                     </div>
-
-                    <div id="scheduleSettings" class="schedule-settings">
-                        <div class="time-range">
-                            <div class="time-input-group">
-                                <label>Start Time</label>
-                                <input type="time" id="scheduleStart" value="09:00">
-                            </div>
-                            <div class="time-input-group">
-                                <label>End Time</label>
-                                <input type="time" id="scheduleEnd" value="17:00">
-                            </div>
-                        </div>
-
-                        <div class="days-selector">
-                            <p class="section-title">Active Days</p>
-                            <div class="days-grid">
-                                <label class="day-checkbox">
-                                    <input type="checkbox" value="1" checked>
-                                    <span>Mon</span>
-                                </label>
-                                <label class="day-checkbox">
-                                    <input type="checkbox" value="2" checked>
-                                    <span>Tue</span>
-                                </label>
-                                <label class="day-checkbox">
-                                    <input type="checkbox" value="3" checked>
-                                    <span>Wed</span>
-                                </label>
-                                <label class="day-checkbox">
-                                    <input type="checkbox" value="4" checked>
-                                    <span>Thu</span>
-                                </label>
-                                <label class="day-checkbox">
-                                    <input type="checkbox" value="5" checked>
-                                    <span>Fri</span>
-                                </label>
-                                <label class="day-checkbox">
-                                    <input type="checkbox" value="6">
-                                    <span>Sat</span>
-                                </label>
-                                <label class="day-checkbox">
-                                    <input type="checkbox" value="0">
-                                    <span>Sun</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="quick-presets">
-                            <p class="section-title">Quick Presets</p>
-                            <button class="preset-btn" data-preset="work">Work Hours (9-5)</button>
-                            <button class="preset-btn" data-preset="evening">Evenings (6-10 PM)</button>
-                            <button class="preset-btn" data-preset="allday">All Day</button>
-                        </div>
-
-                        <button id="saveSchedule" class="primary-btn">Save Schedule</button>
-                    </div>
-
-                    <div class="schedule-status" id="scheduleStatus"></div>
                 </div>
             </div>
 
@@ -222,37 +255,61 @@
             <div id="statsTab" class="tab-content">
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <span class="stat-value" id="totalBlocks">0</span>
-                        <span class="stat-label">Blocks Today</span>
+                        <span class="stat-value val-today-sessions">0</span>
+                        <span class="stat-label">Today's Sessions</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value val-today-mins">0</span>
+                        <span class="stat-label">Today's Mins</span>
                     </div>
                     <div class="stat-card highlight">
-                        <span class="stat-value" id="totalFocusSessions">0</span>
+                        <span class="stat-value val-total-sessions">0</span>
                         <span class="stat-label">Total Sessions</span>
                     </div>
                     <div class="stat-card highlight">
-                        <span class="stat-value" id="totalFocusMinutes">0</span>
-                        <span class="stat-label">Focus Mins</span>
+                        <span class="stat-value val-total-mins">0</span>
+                        <span class="stat-label">Total Mins</span>
+                    </div>
+                </div>
+                <div class="stats-grid secondary-stats">
+                    <div class="stat-card">
+                        <span class="stat-value" id="totalBlocks">0</span>
+                        <span class="stat-label">Blocks Today</span>
                     </div>
                     <div class="stat-card">
                         <span class="stat-value" id="topDistraction">-</span>
                         <span class="stat-label">Top Distraction</span>
                     </div>
                 </div>
-                <div class="chart-container">
-                    <p class="section-title">Block History</p>
-                    <div id="statsList" class="stats-list"></div>
-                </div>
+
             </div>
         </main>
+
+
 
         <footer>
             <div class="status-indicator">
                 <span id="statusText">Made by <a href="https://www.hashmatic.in"
                         target="_blank">www.hashmatic.in</a></span>
-                <span class="dot"></span>
             </div>
         </footer>
     </div>
+
+    <!-- Generic Confirmation Modal -->
+    <div id="confirmationModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-icon" id="confirmIcon">🛡️</div>
+            <h2 id="modalTitle">Wait, Stay Focused!</h2>
+            <p id="modalGuidance" class="modal-guidance">
+                Is this website really more important than the goals you're working toward right now?
+            </p>
+            <div class="modal-actions">
+                <button id="cancelConfirm" class="primary-btn">Keep it Active</button>
+                <button id="executeConfirm" class="text-btn">Yes, disable it</button>
+            </div>
+        </div>
+    </div>
+
     <script src="popup.js"></script>
 </body>
 
