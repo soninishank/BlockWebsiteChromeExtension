@@ -10,7 +10,8 @@
     "alarms",
     "notifications",
     "browsingData",
-    "tabs"
+    "tabs",
+    "offscreen"
   ],
   "host_permissions": [
     "<all_urls>"

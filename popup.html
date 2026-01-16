@@ -14,6 +14,13 @@
 
 <body>
     <div class="container">
+        <header class="header">
+            <h1 class="app-title">Focus Flow</h1>
+            <button id="themeToggle" class="theme-toggle" title="Toggle theme">
+                <span class="theme-icon">🌙</span>
+            </button>
+        </header>
+
         <nav class="tabs">
             <button class="tab-btn active" data-tab="focus">Focus</button>
             <button class="tab-btn" data-tab="sites">Sites</button>
@@ -27,21 +34,72 @@
                 <div class="timer-card">
                     <div class="timer-display" id="timerDisplay">25:00</div>
                     <div class="timer-controls">
-                        <select id="durationSelect">
-                            <option value="15">15 mins</option>
-                            <option value="25" selected>25 mins</option>
-                            <option value="45">45 mins</option>
-                            <option value="60">60 mins</option>
-                        </select>
+                        <div class="timing-input-row">
+                            <div class="main-duration-box">
+                                <input type="number" id="durationInput" min="1" max="360" value="25" placeholder="00">
+                                <span class="unit">mins</span>
+                            </div>
+                        </div>
+
+                        <div class="duration-chips">
+                            <button class="chip" data-mins="15">15</button>
+                            <button class="chip active" data-mins="25">25</button>
+                            <button class="chip" data-mins="45">45</button>
+                            <button class="chip" data-mins="60">60</button>
+                        </div>
+
                         <button id="startSessionBtn" class="primary-btn">Start Session</button>
-                        <button id="stopSessionBtn" class="secondary-btn hidden">Stop</button>
+
+                        <div id="activeActionGroup" class="action-group hidden">
+                            <button id="pauseSessionBtn" class="secondary-btn">Pause</button>
+                            <button id="stopSessionBtn" class="secondary-btn danger">Stop</button>
+                            <div id="hardModeLockedMsg" class="hard-mode-locked hidden">
+                                🔒 Session Locked (Hard Mode)
+                            </div>
+                        </div>
                     </div>
                     <div class="hard-mode-toggle">
-                        <label class="switch">
-                            <input type="checkbox" id="hardModeToggle">
-                            <span class="slider round"></span>
-                        </label>
-                        <span>Hard Mode</span>
+                        <div class="toggle-row">
+                            <label class="switch">
+                                <input type="checkbox" id="hardModeToggle">
+                                <span class="slider round"></span>
+                            </label>
+                            <span>Hard Mode</span>
+                        </div>
+                        <p class="hard-mode-hint">Session cannot be paused or stopped once started.</p>
+                    </div>
+
+                    <!-- Daily Stats Display -->
+                    <div class="daily-stats-row">
+                        <div class="daily-stat-item">
+                            <span class="daily-stat-val" id="dailySessions">0</span>
+                            <span class="daily-stat-lbl">Today's Sessions</span>
+                        </div>
+                        <div class="daily-stat-divider"></div>
+                        <div class="daily-stat-item">
+                            <span class="daily-stat-val" id="dailyMinutes">0</span>
+                            <span class="daily-stat-lbl">Focus Minutes</span>
+                        </div>
+                    </div>
+
+                    <!-- Celebration Overlay -->
+                    <div id="celebrationOverlay" class="celebration-overlay hidden">
+                        <div class="celebration-content">
+                            <div class="celebration-emoji">🎊</div>
+                            <h2>Amazing Work!</h2>
+                            <p>You stayed focused and completed your session.</p>
+                            <div class="completion-stats">
+                                <div class="stat-box">
+                                    <span id="completeTotalSessions" class="stat-value">0</span>
+                                    <span class="stat-label">Total Sessions</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span id="completeTotalMinutes" class="stat-value">0</span>
+                                    <span class="stat-label">Focus Mins</span>
+                                </div>
+                            </div>
+                            <button id="closeCelebration" class="primary-btn">Awesome!</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -66,13 +124,38 @@
             <div id="scheduleTab" class="tab-content">
                 <div class="schedule-card">
                     <p class="section-title">Automatic Blocking Schedule</p>
-                    <p class="schedule-description">Block sites automatically during specific hours</p>
+                    <p class="schedule-description">Sites are blocked only during your scheduled hours. Outside these
+                        times, they are accessible.</p>
 
-                    <div class="schedule-toggle-section">
+
+                    <div class="schedule-toggle-section" id="scheduleToggleSection">
                         <label class="schedule-toggle-label">
                             <input type="checkbox" id="scheduleEnabled" class="schedule-checkbox">
                             <span>Enable Schedule</span>
                         </label>
+                    </div>
+
+                    <!-- Schedule Summary (shown when schedule exists) -->
+                    <div id="scheduleSummary" class="schedule-summary" style="display: none;">
+                        <div class="schedule-status-indicator" id="scheduleActiveStatus">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Schedule is currently ACTIVE - Sites are blocked</span>
+                        </div>
+
+                        <div class="summary-content">
+                            <div class="summary-item">
+                                <span class="summary-label">⏰ Active Hours:</span>
+                                <span class="summary-value" id="summaryTime">9:00 AM - 5:00 PM</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">📅 Active Days:</span>
+                                <span class="summary-value" id="summaryDays">Mon, Tue, Wed, Thu, Fri</span>
+                            </div>
+                        </div>
+                        <div class="summary-actions">
+                            <button id="modifySchedule" class="secondary-btn">Modify Schedule</button>
+                            <button id="disableSchedule" class="danger-btn">Disable Schedule</button>
+                        </div>
                     </div>
 
                     <div id="scheduleSettings" class="schedule-settings">
@@ -142,6 +225,14 @@
                         <span class="stat-value" id="totalBlocks">0</span>
                         <span class="stat-label">Blocks Today</span>
                     </div>
+                    <div class="stat-card highlight">
+                        <span class="stat-value" id="totalFocusSessions">0</span>
+                        <span class="stat-label">Total Sessions</span>
+                    </div>
+                    <div class="stat-card highlight">
+                        <span class="stat-value" id="totalFocusMinutes">0</span>
+                        <span class="stat-label">Focus Mins</span>
+                    </div>
                     <div class="stat-card">
                         <span class="stat-value" id="topDistraction">-</span>
                         <span class="stat-label">Top Distraction</span>
@@ -156,7 +247,8 @@
 
         <footer>
             <div class="status-indicator">
-                <span id="statusText">Focus Flow is ready</span>
+                <span id="statusText">Made by <a href="https://www.hashmatic.in"
+                        target="_blank">www.hashmatic.in</a></span>
                 <span class="dot"></span>
             </div>
         </footer>
