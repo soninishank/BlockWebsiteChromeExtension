@@ -185,7 +185,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         triggerSound();
         chrome.notifications.create({
             type: 'basic',
-            iconUrl: 'icon128.png',
+            iconUrl: 'assets/icon128.png',
             title: 'Focus Session Complete!',
             message: 'Great job staying focused. Take a break!',
             priority: 2
@@ -198,7 +198,7 @@ async function triggerSound() {
     const hasOffscreen = await chrome.offscreen.hasDocument();
     if (!hasOffscreen) {
         await chrome.offscreen.createDocument({
-            url: 'offscreen.html',
+            url: 'pages/offscreen.html',
             reasons: ['AUDIO_PLAYBACK'],
             justification: 'Play sound notification when focus session ends'
         });
@@ -262,7 +262,7 @@ async function updateRules(sites) {
             priority: 1,
             action: {
                 type: 'redirect',
-                redirect: { extensionPath: '/blocked.html' }
+                redirect: { extensionPath: '/pages/blocked.html' }
             },
             condition: {
                 requestDomains: [site],
